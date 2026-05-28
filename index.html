@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quoridor Engine</title>
+    <style>
+        /* --- THE MAGIC SCALING & ZOOM MATH --- */
+        :root {
+            --zoom: 1; 
+            --base-cell: max(25px, min(6.5vh, 6.5vw));
+            --base-wall: max(8px, min(1.5vh, 1.5vw));
+            
+            --cell: calc(var(--base-cell) * var(--zoom));
+            --wall: calc(var(--base-wall) * var(--zoom));
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1e1e2e; color: #cdd6f4; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 2vh 1vw; min-height: 100vh; box-sizing: border-box; overflow: auto; }
+        
+        /* --- RESTORED: THE ORIGINAL COMPACT DASHBOARD --- */
+        .dashboard { background-color: #313244; padding: 10px 20px; border-radius: 10px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: center; margin-bottom: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 100%; max-width: 1100px; box-sizing: border-box; }
+        .dash-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        
+        .turn-indicator { font-size: 1.2rem; font-weight: bold; min-width: 180px; text-align: center; }
+        .p1-text { color: #f38ba8; } .p2-text { color: #89b4fa; }
+        .wall-counter { font-size: 1rem; font-weight: bold; background: #181825; padding: 6px 15px; border-radius: 8px; border: 1px solid #45475a; text-align: center; white-space: nowrap; transition: 0.3s; }
+        
+        .wall-low { color: #f38ba8 !important; border-color: #f38ba8 !important; animation: pulse-border 1.5s infinite; }
+        @keyframes pulse-border { 
+            0% { box-shadow: 0 0 0 0 rgba(243, 139, 168, 0.6); } 
+            70% { box-shadow: 0 0 0 10px rgba(243, 139, 168, 0); } 
+            100% { box-shadow: 0 0 0 0 rgba(243, 139, 168, 0); } 
+        }
+
+        select { padding: 6px 10px; border-radius: 5px; background: #181825; color: white; border: 1px solid #45475a; font-size: 0.95rem; cursor: pointer; transition: 0.2s; }
+        button { padding: 8px 15px; border: none; border-radius: 5px; background-color: #a6e3a1; color: #11111b; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.95rem; white-space: nowrap; }
+        
+        /* THE FIX: Disabled state styling to grey out buttons in PvP mode */
+        button:disabled, select:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+        
+        button:hover:not(:disabled) { background-color: #94e2d5; }
+        .btn-danger { background-color: #f38ba8; color: white; } 
+        .btn-danger:hover:not(:disabled) { background-color: #eba0ac; }
+        
+        .btn-time { background-color: #89b4fa; color: white; }
+        .btn-time:hover:not(:disabled) { background-color: #b4befe; }
+
+        .btn-icon { font-size: 1.1rem; padding: 6px 12px; background-color: #45475a; color: white; }
+        .btn-icon:hover:not(:disabled) { background-color: #585b70; }
+
+        .instructions { display: flex; gap: 30px; background-color: #181825; padding: 8px 25px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; color: #a6adc8; border: 1px solid #45475a; box-shadow: 0 5px 10px rgba(0,0,0,0.2); flex-wrap: wrap; justify-content: center; }
+        .instructions b { color: #f9e2af; font-size: 1rem; }
+        .instructions .highlight { color: #a6e3a1; }
+
+        /* --- THE BOARD --- */
+        #board { 
+            display: grid; 
+            grid-template-columns: repeat(8, var(--cell) var(--wall)) var(--cell); 
+            grid-template-rows: repeat(8, var(--cell) var(--wall)) var(--cell); 
+            background-color: #313244; padding: 1.5vh; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); gap: 0; user-select: none; 
+            transition: 0.2s ease; 
+        }
+        .cell { background-color: #45475a; border-radius: 5px; display: flex; justify-content: center; align-items: center; transition: 0.2s; cursor: pointer; }
+        .hover-cell { background-color: rgba(166, 227, 161, 0.4) !important; }
+        .valid-move-hint { box-shadow: inset 0 0 0 3px rgba(166, 227, 161, 0.5); background-color: rgba(166, 227, 161, 0.1); }
+        .valid-move-hint:hover { background-color: rgba(166, 227, 161, 0.4) !important; }
+        
+        .wall-space { background-color: transparent; transition: 0.2s; }
+        .wall-preview { background-color: rgba(249, 226, 175, 0.4) !important; box-shadow: 0 0 8px rgba(249, 226, 175, 0.4); border-radius: 2px; cursor: pointer; }
+        .invalid-wall-preview { background-color: rgba(243, 139, 168, 0.6) !important; box-shadow: 0 0 8px rgba(243, 139, 168, 0.6); border-radius: 2px; cursor: not-allowed; }
+        .wall-placed { background-color: #f9e2af !important; box-shadow: 0 0 8px #f9e2af; border-radius: 2px; }
+
+        .player1, .player2 { color: white; border-radius: 50%; width: calc(var(--cell) * 0.7); height: calc(var(--cell) * 0.7); display: flex; justify-content: center; align-items: center; font-size: calc(var(--cell) * 0.4); font-weight: bold; transition: 0.2s; }
+        .player1 { background-color: #f38ba8; box-shadow: 0 0 10px #f38ba8; }
+        .player2 { background-color: #89b4fa; box-shadow: 0 0 10px #89b4fa; }
+        .clickable-pawn:hover { transform: scale(1.1); box-shadow: 0 0 20px currentColor; cursor: help; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(17, 17, 27, 0.85); backdrop-filter: blur(5px); z-index: 1000; justify-content: center; align-items: center; animation: fadeIn 0.3s ease; }
+        .modal-content { background: #313244; padding: 40px 60px; border-radius: 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .win-title { font-size: 2.5rem; font-weight: bold; margin-bottom: 25px; }
+        .play-again-btn { font-size: 1.1rem; padding: 12px 35px; background-color: #a6e3a1; border-radius: 10px; }
+
+        .board-container { position: relative; display: flex; justify-content: center; }
+        
+        .ai-thinking-overlay { 
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
+            background: rgba(17, 17, 27, 0.95); display: none; flex-direction: row; 
+            justify-content: center; align-items: center; gap: 15px; border-radius: 30px; 
+            z-index: 100; padding: 8px 25px; color: #f9e2af; font-size: 1.1rem; 
+            font-weight: bold; box-shadow: 0 10px 25px rgba(0,0,0,0.6); border: 1px solid #f9e2af;
+        }
+        
+        .toast-message {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 30, 46, 0.95); color: white; padding: 10px 25px;
+            border-radius: 20px; font-size: 1.1rem; font-weight: bold;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 105;
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none; 
+            white-space: nowrap; border: 1px solid transparent;
+        }
+        .toast-show { opacity: 1; }
+        
+        .spinner { border: 3px solid rgba(249, 226, 175, 0.3); border-top: 3px solid #f9e2af; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="winModal" class="modal-overlay">
+        <div class="modal-content">
+            <div id="winTitle" class="win-title">Player 1 Wins!</div>
+            <button class="play-again-btn" onclick="closeWinModal()">Play Again</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="dash-group">
+            <div id="p1Walls" class="wall-counter p1-text">P1 Walls: 10</div>
+            <div id="turnDisplay" class="turn-indicator p1-text">Turn: Player 1</div>
+            <div id="p2Walls" class="wall-counter p2-text">P2 Walls: 10</div>
+        </div>
+        <div class="dash-group">
+            <select id="gameMode" onchange="updateSettings()">
+                <option value="PvE">Player vs AI</option>
+                <option value="PvP">Player vs Player</option>
+            </select>
+            
+            <select id="aiDifficulty" onchange="updateSettings()">
+                <option value="1">AI: Easy (Random)</option>
+                <option value="2">AI: Medium (Sprinter)</option>
+                <option value="3">AI: Hard (Tactician)</option>
+                <option value="4" selected>AI: Master (Monte Carlo)</option>
+            </select>
+            
+            <button id="orientationBtn" onclick="toggleOrientation()">Wall: HORIZONTAL ('R')</button>
+            
+            <button id="undoBtn" class="btn-time" onclick="triggerUndo()" title="Undo Last Move">⏪ Undo</button>
+            <button id="redoBtn" class="btn-time" onclick="triggerRedo()" title="Redo Move">Redo ⏩</button>
+            
+            <button class="btn-danger" onclick="resetGame()">Reset</button>
+            
+            <button class="btn-icon" onclick="adjustZoom(-0.1)" title="Zoom Out">🔍-</button>
+            <button class="btn-icon" onclick="adjustZoom(0.1)" title="Zoom In">🔍+</button>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <span>💡 <span class="highlight">Need help?</span> Click your active pawn to show valid moves.</span>
+        <span>🔄 <span class="highlight">Rotate Wall:</span> Press <b>'R'</b> to rotate before placing.</span>
+    </div>
+
+    <div class="board-container">
+        <div id="aiOverlay" class="ai-thinking-overlay">
+            <div class="spinner"></div>
+            <div>The Master is calculating...</div>
+        </div>
+        
+        <div id="toastMessage" class="toast-message"></div>
+        <div id="board"></div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8080/api/game";
+        
+        let currentPlayerId = 1;
+        let currentOrientation = "HORIZONTAL";
+        let lastGameMode = "PvE"; 
+        let globalValidMoves = []; 
+        let globalActiveWalls = []; 
+        let showHints = false; 
+        let lastGameState = null; 
+        let zoomLevel = 1.0;
+        let messageTimeout;
+        let isAiThinking = false; 
+
+        function adjustZoom(delta) {
+            zoomLevel += delta;
+            if (zoomLevel < 0.6) zoomLevel = 0.6; 
+            if (zoomLevel > 1.8) zoomLevel = 1.8; 
+            document.documentElement.style.setProperty('--zoom', zoomLevel);
+        }
+
+        function showMessage(text, color) {
+            const toast = document.getElementById('toastMessage');
+            toast.innerText = text;
+            toast.style.color = color || 'white';
+            toast.style.borderColor = color || 'white';
+            
+            toast.classList.add('toast-show');
+            
+            clearTimeout(messageTimeout);
+            messageTimeout = setTimeout(() => {
+                toast.classList.remove('toast-show');
+            }, 1700); 
+        }
+
+        function toggleHints() {
+            showHints = !showHints;
+            drawBoard(lastGameState); 
+        }
+
+        function triggerWin(winnerText) {
+            const titleObj = document.getElementById('winTitle');
+            if (winnerText.includes("Player 1")) {
+                titleObj.innerText = "🎉 Player 1 Wins! 🎉"; titleObj.style.color = "#f38ba8";
+            } else if (winnerText.includes("Player 2")) {
+                titleObj.innerText = "🎉 Player 2 Wins! 🎉"; titleObj.style.color = "#89b4fa";
+            } else {
+                titleObj.innerText = "🤖 AI Wins! 🤖"; titleObj.style.color = "#f9e2af";
+            }
+            document.getElementById('winModal').style.display = 'flex';
+        }
+
+        function closeWinModal() {
+            document.getElementById('winModal').style.display = 'none';
+            resetGame(); 
+        }
+
+        function toggleOrientation() {
+            currentOrientation = (currentOrientation === "HORIZONTAL") ? "VERTICAL" : "HORIZONTAL";
+            document.getElementById('orientationBtn').innerText = `Wall: ${currentOrientation} ('R')`;
+            clearPreview(); 
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'r') toggleOrientation();
+        });
+
+        async function updateSettings() {
+            const mode = document.getElementById('gameMode').value;
+            const difficulty = document.getElementById('aiDifficulty').value;
+            
+            localStorage.setItem('quoridor_mode', mode);
+            localStorage.setItem('quoridor_diff', difficulty);
+
+            const isAiEnabled = (mode === 'PvE');
+            const modeChanged = (mode !== lastGameMode);
+            lastGameMode = mode; 
+
+            try {
+                await fetch(`${API_URL}/settings?aiEnabled=${isAiEnabled}&difficulty=${difficulty}`, { method: 'POST' });
+                
+                // THE FIX: Disable instead of hiding! The UI stays perfectly still.
+                document.getElementById('aiDifficulty').disabled = !isAiEnabled;
+                document.getElementById('undoBtn').disabled = !isAiEnabled;
+                document.getElementById('redoBtn').disabled = !isAiEnabled;
+
+                if (modeChanged) {
+                    resetGame();
+                    showMessage(`Switched to ${mode}. Game auto-reset!`, "#f9e2af");
+                }
+            } catch (error) {
+                showMessage("⚠️ Server offline.", "#f38ba8");
+            }
+        }
+
+        async function fetchAndDrawBoard() {
+            showHints = false; 
+
+            try {
+                const response = await fetch(`${API_URL}/state`);
+                if (!response.ok) throw new Error("Server returned " + response.status);
+                
+                const gameState = await response.json(); 
+                lastGameState = gameState; 
+                currentPlayerId = gameState.currentPlayerId; 
+                globalActiveWalls = gameState.activeWalls || [];
+                
+                try {
+                    const moveResponse = await fetch(`${API_URL}/valid-moves?playerId=${currentPlayerId}`);
+                    if (moveResponse.ok) {
+                        globalValidMoves = await moveResponse.json();
+                    } else {
+                        globalValidMoves = [];
+                    }
+                } catch (moveError) {
+                    globalValidMoves = []; 
+                }
+
+                updateDashboard();
+                drawBoard(gameState);
+            } catch (error) {
+                showMessage("⚠️ Cannot connect to Java Server on port 8080.", "#f38ba8");
+            }
+        }
+
+        async function triggerAITurn() {
+            isAiThinking = true;
+            document.getElementById('aiOverlay').style.display = 'flex'; 
+            
+            try {
+                const response = await fetch(`${API_URL}/ai-turn`, { method: 'POST' });
+                const msg = await response.text();
+                
+                await fetchAndDrawBoard(); 
+                
+                if (msg.includes("Wins")) setTimeout(() => triggerWin(msg), 100);
+            } catch (error) {
+                console.error("AI failed to take turn:", error);
+            } finally {
+                isAiThinking = false;
+                document.getElementById('aiOverlay').style.display = 'none'; 
+            }
+        }
+
+        async function triggerUndo() {
+            if (isAiThinking) {
+                showMessage("⏳ Wait for the AI to finish!", "#f9e2af");
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/undo`, { method: 'POST' });
+                if (response.ok) {
+                    await fetchAndDrawBoard();
+                    showMessage("⏪ Undid move", "#a6e3a1");
+                } else {
+                    showMessage("❌ " + await response.text(), "#f38ba8");
+                }
+            } catch (e) { showMessage("⚠️ Server offline.", "#f38ba8"); }
+        }
+
+        async function triggerRedo() {
+            if (isAiThinking) {
+                showMessage("⏳ Wait for the AI to finish!", "#f9e2af");
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/redo`, { method: 'POST' });
+                if (response.ok) {
+                    await fetchAndDrawBoard();
+                    showMessage("⏩ Redid move", "#a6e3a1");
+                } else {
+                    showMessage("❌ " + await response.text(), "#f38ba8");
+                }
+            } catch (e) { showMessage("⚠️ Server offline.", "#f38ba8"); }
+        }
+
+        function updateDashboard() {
+            const turnDiv = document.getElementById('turnDisplay');
+            turnDiv.innerText = `Turn: Player ${currentPlayerId}`;
+            turnDiv.className = `turn-indicator ${currentPlayerId === 1 ? 'p1-text' : 'p2-text'}`;
+
+            if (lastGameState) {
+                const p1Walls = lastGameState.player1.wallsRemaining;
+                const p2Walls = lastGameState.player2.wallsRemaining;
+                
+                const p1Div = document.getElementById('p1Walls');
+                const p2Div = document.getElementById('p2Walls');
+                
+                p1Div.innerText = `P1 Walls: ${p1Walls}`;
+                p2Div.innerText = `P2 Walls: ${p2Walls}`;
+                
+                if (p1Walls <= 3) p1Div.classList.add('wall-low');
+                else p1Div.classList.remove('wall-low');
+                
+                if (p2Walls <= 3) p2Div.classList.add('wall-low');
+                else p2Div.classList.remove('wall-low');
+            }
+        }
+
+        function drawBoard(gameState) {
+            const boardDiv = document.getElementById('board');
+            boardDiv.innerHTML = ''; 
+
+            for (let y = 0; y < 17; y++) {
+                for (let x = 0; x < 17; x++) {
+                    const cell = document.createElement('div');
+                    cell.id = `cell-${x}-${y}`; 
+
+                    if (x % 2 === 0 && y % 2 === 0) {
+                        cell.className = 'cell';
+                        const backendX = x / 2;
+                        const backendY = y / 2;
+
+                        const isP1 = (gameState.player1.position.x === backendX && gameState.player1.position.y === backendY);
+                        const isP2 = (gameState.player2.position.x === backendX && gameState.player2.position.y === backendY);
+
+                        cell.onmouseenter = () => cell.classList.add('hover-cell');
+                        cell.onmouseleave = () => cell.classList.remove('hover-cell');
+                        cell.onclick = () => attemptMove(backendX, backendY);
+
+                        const isValidMove = globalValidMoves.some(m => m.x === backendX && m.y === backendY);
+                        if (isValidMove && !isP1 && !isP2 && showHints) {
+                            cell.classList.add('valid-move-hint');
+                        }
+
+                        if (isP1) {
+                            const p1Div = document.createElement('div');
+                            p1Div.className = 'player1';
+                            p1Div.innerText = '1';
+                            if (currentPlayerId === 1) {
+                                p1Div.classList.add('clickable-pawn');
+                                cell.onclick = (e) => { e.stopPropagation(); toggleHints(); };
+                            }
+                            cell.appendChild(p1Div);
+                        }
+
+                        if (isP2) {
+                            const p2Div = document.createElement('div');
+                            p2Div.className = 'player2';
+                            p2Div.innerText = '2';
+                            if (currentPlayerId === 2) {
+                                p2Div.classList.add('clickable-pawn');
+                                cell.onclick = (e) => { e.stopPropagation(); toggleHints(); };
+                            }
+                            cell.appendChild(p2Div);
+                        }
+                        
+                    } else {
+                        cell.className = 'wall-space';
+                        cell.innerHTML = '<div style="width:100%; height:100%;"></div>';
+                        cell.onmouseenter = () => previewWall(x, y);
+                        cell.onmouseleave = () => clearPreview();
+                        cell.onclick = () => attemptWall(x, y);
+                    }
+                    boardDiv.appendChild(cell);
+                }
+            }
+
+            globalActiveWalls.forEach(wall => {
+                const wx = wall.anchor.x; const wy = wall.anchor.y;
+                if (wall.orientation === 'HORIZONTAL') {
+                    document.getElementById(`cell-${wx*2}-${wy*2+1}`).classList.add('wall-placed');
+                    document.getElementById(`cell-${wx*2+1}-${wy*2+1}`).classList.add('wall-placed');
+                    document.getElementById(`cell-${wx*2+2}-${wy*2+1}`).classList.add('wall-placed');
+                } else {
+                    document.getElementById(`cell-${wx*2+1}-${wy*2}`).classList.add('wall-placed');
+                    document.getElementById(`cell-${wx*2+1}-${wy*2+1}`).classList.add('wall-placed');
+                    document.getElementById(`cell-${wx*2+1}-${wy*2+2}`).classList.add('wall-placed');
+                }
+            });
+        }
+
+        function isWallCollision(wx, wy, orientation) {
+            if (wx < 0 || wx > 7 || wy < 0 || wy > 7) return true;
+
+            for (let wall of globalActiveWalls) {
+                if (wall.orientation === orientation) {
+                    if (orientation === 'HORIZONTAL' && wall.anchor.y === wy && Math.abs(wall.anchor.x - wx) <= 1) return true;
+                    if (orientation === 'VERTICAL' && wall.anchor.x === wx && Math.abs(wall.anchor.y - wy) <= 1) return true;
+                } else {
+                    if (wall.anchor.x === wx && wall.anchor.y === wy) return true;
+                }
+            }
+            return false;
+        }
+
+        function getAnchorFromVisual(x, y) {
+            let wx = Math.floor(x / 2); let wy = Math.floor(y / 2);
+            if (wx > 7) wx = 7; if (wy > 7) wy = 7;
+            return { wx, wy };
+        }
+
+        function previewWall(x, y) {
+            clearPreview();
+            const { wx, wy } = getAnchorFromVisual(x, y);
+            
+            const isInvalid = isWallCollision(wx, wy, currentOrientation);
+            const previewClass = isInvalid ? 'invalid-wall-preview' : 'wall-preview';
+            
+            if (currentOrientation === 'HORIZONTAL') {
+                document.getElementById(`cell-${wx*2}-${wy*2+1}`)?.classList.add(previewClass);
+                document.getElementById(`cell-${wx*2+1}-${wy*2+1}`)?.classList.add(previewClass);
+                document.getElementById(`cell-${wx*2+2}-${wy*2+1}`)?.classList.add(previewClass);
+            } else {
+                document.getElementById(`cell-${wx*2+1}-${wy*2}`)?.classList.add(previewClass);
+                document.getElementById(`cell-${wx*2+1}-${wy*2+1}`)?.classList.add(previewClass);
+                document.getElementById(`cell-${wx*2+1}-${wy*2+2}`)?.classList.add(previewClass);
+            }
+        }
+
+        function clearPreview() {
+            document.querySelectorAll('.wall-preview, .invalid-wall-preview').forEach(el => {
+                el.classList.remove('wall-preview', 'invalid-wall-preview');
+            });
+        }
+
+        async function attemptMove(targetX, targetY) {
+            if (isAiThinking) return;
+            const response = await fetch(`${API_URL}/move`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId: currentPlayerId, targetX: targetX, targetY: targetY })
+            });
+
+            if (response.ok) {
+                const msg = await response.text();
+                await fetchAndDrawBoard(); 
+                if (msg.includes("Wins")) {
+                    setTimeout(() => triggerWin(msg), 100);
+                } else if (document.getElementById('gameMode').value === 'PvE' && currentPlayerId === 2) {
+                    triggerAITurn(); 
+                }
+            } else {
+                showMessage("❌ " + await response.text(), "#f38ba8");
+            }
+        }
+
+        async function attemptWall(x, y) {
+            if (isAiThinking) return;
+            const myWalls = (currentPlayerId === 1) ? lastGameState.player1.wallsRemaining : lastGameState.player2.wallsRemaining;
+            if (myWalls <= 0) {
+                showMessage("❌ Out of walls!", "#f38ba8");
+                return;
+            }
+
+            const { wx, wy } = getAnchorFromVisual(x, y);
+            
+            if (isWallCollision(wx, wy, currentOrientation)) {
+                showMessage("❌ Invalid: Wall overlaps or goes out of bounds.", "#f38ba8");
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/wall`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId: currentPlayerId, anchorX: wx, anchorY: wy, orientation: currentOrientation })
+            });
+
+            if (response.ok) {
+                const msg = await response.text();
+                await fetchAndDrawBoard();
+                if (msg.includes("Wins")) {
+                    setTimeout(() => triggerWin(msg), 100);
+                } else if (document.getElementById('gameMode').value === 'PvE' && currentPlayerId === 2) {
+                    triggerAITurn(); 
+                }
+            } else {
+                showMessage("❌ " + await response.text(), "#f38ba8");
+            }
+        }
+
+        async function resetGame() {
+            await fetch(`${API_URL}/reset`, { method: 'POST' });
+            const isAiEnabled = (document.getElementById('gameMode').value === 'PvE');
+            const diff = document.getElementById('aiDifficulty').value;
+            await fetch(`${API_URL}/settings?aiEnabled=${isAiEnabled}&difficulty=${diff}`, { method: 'POST' });
+            fetchAndDrawBoard();
+            showMessage("🔄 Game Reset", "#89b4fa");
+        }
+
+        window.onload = () => {
+            const savedMode = localStorage.getItem('quoridor_mode');
+            const savedDiff = localStorage.getItem('quoridor_diff');
+
+            if (savedMode) document.getElementById('gameMode').value = savedMode;
+            if (savedDiff) document.getElementById('aiDifficulty').value = savedDiff;
+            
+            lastGameMode = document.getElementById('gameMode').value;
+
+            updateSettings().then(() => fetchAndDrawBoard());
+        };
+    </script>
+</body>
+</html>

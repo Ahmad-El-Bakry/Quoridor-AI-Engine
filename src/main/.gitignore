@@ -1,0 +1,11 @@
+HELP.md
+target/
+!-WPI-target/
+*.class
+*.log
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
