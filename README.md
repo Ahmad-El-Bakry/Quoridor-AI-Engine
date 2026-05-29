@@ -23,11 +23,18 @@ Quoridor is played on a 9x9 grid. The objective is to be the first player to adv
 
 ## 🖼️ Screenshots of the Game in Action
 
-### Main Gameplay Interface
-![Gameplay Screenshot 1](./screenshot1.png)
+### Main Gameplay Interface<img width="1455" height="702" alt="Screenshot 2026-05-29 035230" src="https://github.com/user-attachments/assets/a29fba04-cb42-4d04-844a-1b5a80ede504" />
+<img width="1467" height="902" alt="Screenshot 2026-05-29 035126" src="https://github.com/user-attachments/assets/755add4a-bdd2-4b4b-bada-5b146a3d89f0" />
+<img width="1369" height="912" alt="Screenshot 2026-05-29 035047" src="https://github.com/user-attachments/assets/bbcf9c13-7b06-457a-9927-afe2253259bb" />
+
+
 
 ### AI Calculation & Wall Placement
-![Gameplay Screenshot 2](./screenshot2.png)
+<img width="884" height="632" alt="Screenshot 2026-05-29 040702" src="https://github.com/user-attachments/assets/b07ff446-17cc-4c07-88d2-0754802b9108" />
+<img width="1351" height="766" alt="Screenshot 2026-05-29 040646" src="https://github.com/user-attachments/assets/5f0c2e46-a21d-47c0-8c63-0d2694c30988" />
+<img width="982" height="633" alt="Screenshot 2026-05-29 040425" src="https://github.com/user-attachments/assets/49992a3a-74ef-47ba-be66-55a9fadf007c" />
+<img width="1324" height="760" alt="Screenshot 2026-05-29 040412" src="https://github.com/user-attachments/assets/60bc21e5-1f0d-4e9a-a9dc-28e058feee00" />
+
 
 ---
 
