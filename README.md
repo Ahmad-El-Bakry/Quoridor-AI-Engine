@@ -57,9 +57,11 @@ Because this system utilizes a decoupled full-stack architecture, you must run t
 The web application features an intuitive, entirely mouse-driven graphical user interface:
 
 * **Pawn Movement:** Valid movement squares are automatically highlighted during your turn. Click any adjacent highlighted square to shift your pawn's coordinates.
-* **Wall Placement:** 1. Toggle your desired wall orientation using the UI selector (**Horizontal** or **Vertical**).
+* **Wall Placement:**
+  1. Toggle your desired wall orientation using the letter **R** (**Horizontal** TO **Vertical** and vice versa).
   2. Hover your cursor over the alignment grids between the board cells.
   3. Click a gap to place your wall permanently. The server will reject the move if it violates the anti-trapping rule.
-* **Timeline Controls:** * **Undo (⬅️):** Rolls back the last full round of moves using the system's underlying Event Sourcing history stack.
+* **Timeline Controls:**
+  * **Undo (⬅️):** Rolls back the last full round of moves using the system's underlying Event Sourcing history stack.
   * **Redo (➡️):** Re-applies an undone move sequence instantly.
   * **Reset:** Clears the board and starts a fresh game.
