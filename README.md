@@ -6,7 +6,8 @@ A full-stack, decoupled web application implementing the classic abstract board 
 
 ## 🎥 Project Demo Video
 Click the link below to watch the technical demonstration and gameplay walkthrough:
-👉 **[https://drive.google.com/drive/folders/1YHfS8u3kF346GiKhus-h5vomJpYp9ZTU?usp=sharing] 
+👉 you want it to be a clean, clickable hyperlink, you can change it to exactly this:
+[Watch the Demo Video Here](https://drive.google.com/drive/folders/1YHfS8u3kF346GiKhus-h5vomJpYp9ZTU?usp=sharing)
 
 ---
 
