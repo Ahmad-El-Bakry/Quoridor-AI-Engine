@@ -1,6 +1,6 @@
 # Quoridor AI Strategy Engine
 
-A full-stack, decoupled web application implementing the classic abstract board game **Quoridor**. This project features a robust simulation engine built with Java and Spring Boot, a responsive vanilla frontend UI, and tiered AI components ranging from simple pathfinding heuristics to advanced Monte Carlo Tree Search (MCTS).
+A full-stack, decoupled web application implementing the classic abstract board game **Quoridor**. This project features a robust simulation engine built with Java and Spring Boot, a responsive vanilla frontend UI, and tiered AI components ranging from simple pathfinding heuristics like BFS and A* to advanced Monte Carlo Tree Search (MCTS).
 
 ---
 
